@@ -1,0 +1,180 @@
+集群规划：
+	主机名		IP				安装的软件			运行的进程						物理位置
+www.mickey01.com	192.168.137.101		jdk、hadoop			NameNode、DFSZKFailoverController(zkfc)  	     E:\MickeyHaoopStudy\VirtualBox\Mickey001_NN01_Host
+www.mickey02.com	192.168.137.102		jdk、hadoop			NameNode、DFSZKFailoverController(zkfc)		     E:\MickeyHaoopStudy\VirtualBox\Mickey002_NN02
+www.mickey03.com	192.168.137.103		jdk、hadoop、zookeeper		DataNode、NodeManager、JournalNode、QuorumPeerMain   F:\MickeyHaoopStudy002\Mickey_DN01				
+www.mickey04.com	192.168.137.104		jdk、hadoop、zookeeper		DataNode、NodeManager、JournalNode、QuorumPeerMain   F:\MickeyHaoopStudy002\Mickey_DN02
+www.mickey05.com	192.168.137.105		jdk、hadoop、zookeeper		DataNode、NodeManager、JournalNode、QuorumPeerMain   F:\MickeyHaoopStudy002\Mickey_DN03
+www.mickey06.com	192.168.137.106		jdk、hadoop			ResourceManager					     C:\MickeyHadoopVirtualBox\Mickey_RM01 
+www.mickey07.com	192.168.137.107		jdk、hadoop			ResourceManager					     C:\MickeyHadoopVirtualBox\Mickey_RM02
+
+修改配置信息：
+1. core-site.xml:
+<property>
+<name>fs.defaultFS</name>
+<value>hdfs://ns1/</value>
+</property>
+<property>
+<name>hadoop.tmp.dir</name>
+<value>/mickey/hadoop-2.6.4/tmp/</value>
+</property>
+<property>
+<name>ha.zookeeper.quorum</name>
+<value>www.mickey03.com:2181,www.mickey04.com:2181,www.mickey05.com:2181</value>
+</property>
+
+2. hdfs-site.xml:
+<property>
+<name>dfs.nameservices</name>
+<value>ns1</value>
+</property>
+<property>
+<name>dfs.ha.namenodes.ns1</name>
+<value>nn1,nn2</value>
+</property>
+<property>
+<name>dfs.namenode.rpc-address.ns1.nn1</name>
+<value>www.mickey01.com:9000</value>
+</property>
+<property>
+<name>dfs.namenode.http-address.ns1.nn1</name>
+<value>www.mickey01.com:50070</value>
+</property>
+<property>
+<name>dfs.namenode.rpc-address.ns1.nn2</name>
+<value>www.mickey02.com:9000</value>
+</property>
+<property>
+<name>dfs.namenode.http-address.ns1.nn2</name>
+<value>www.mickey02.com:50070</value>
+</property>
+<property>
+<name>dfs.namenode.shared.edits.dir</name>
+<value>qjournal://www.mickey03.com:8485;www.mickey04.com:8485;www.mickey05.com:8485/ns1</value>
+</property>
+<property>
+<name>dfs.journalnode.edits.dir</name>
+<value>/mickey/hadoop-2.6.4/journaldata</value>
+</property>
+<property>
+<name>dfs.ha.automatic-failover.enabled</name>
+<value>true</value>
+</property>
+<property>
+<name>dfs.client.failover.proxy.provider.ns1</name>
+<value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
+</property>
+<property>
+<name>dfs.ha.fencing.methods</name>
+<value>
+sshfence
+shell(/bin/true)
+</value>
+</property>
+<property>
+<name>dfs.ha.fencing.ssh.private-key-files</name>
+<value>/home/hadoop/.ssh/id_rsa</value>
+</property>
+<property>
+<name>dfs.ha.fencing.ssh.connect-timeout</name>
+<value>30000</value>
+</property>
+
+3.修改mapred-site.xml
+
+<property>
+<name>mapreduce.framework.name</name>
+<value>yarn</value>
+</property>
+
+4. 修改yarn-site.xml
+<property>
+<name>yarn.resourcemanager.ha.enabled</name>
+<value>true</value>
+</property>
+<property>
+<name>yarn.resourcemanager.cluster-id</name>
+<value>yrc</value>
+</property>
+<property>
+<name>yarn.resourcemanager.ha.rm-ids</name>
+<value>rm1,rm2</value>
+</property>
+<property>
+<name>yarn.resourcemanager.hostname.rm1</name>
+<value>www.mickey06.com</value>
+</property>
+<property>
+<name>yarn.resourcemanager.hostname.rm2</name>
+<value>www.mickey07.com</value>
+</property>
+<property>
+<name>yarn.resourcemanager.zk-address</name>
+<value>www.mickey03.com:2181,www.mickey04.com:2181,www.mickey05.com:2181</value>
+</property>
+<property>
+<name>yarn.nodemanager.aux-services</name>
+<value>mapreduce_shuffle</value>
+</property>
+
+
+无密登陆：
+NameNode ---> NameNode, DataNode
+www.mickey01.com  --->   www.mickey01.com, www.mickey02.com, www.mickey03.com, www.mickey04.com, www.mickey05.com
+
+ResourceManager ---> ResourceManager, NodeManager
+www.mickey06.com ---> www.mickey06.com, www.mickey07.com, www.mickey03.com, www.mickey04.com, www.mickey05.com
+
+目前yarn的脚本不够完善，第二个ResourceManager （www.mickey07.com 上）不会自动启动，只能手动启动
+
+NameNode启动的同时启动其下的几个DataNode, 需要配置 /mickey/hadoop2.6.4/etc下的slaves文件：
+www.mickey01.com --> www.mickey03.com, www.mickey04.com, www.mickey05.com
+
+
+2.5启动zookeeper集群（分别在www.mickey03.com、www.mickey04.com、www.mickey05.com上启动zk）
+			cd /mickey/zookeeper-3.4.8/bin/
+			./zkServer.sh start
+			#查看状态：一个leader，两个follower
+			./zkServer.sh status
+			
+		2.6启动journalnode（分别在在www.mickey03.com、www.mickey04.com、www.mickey05.com上执行）
+			cd /mickey/hadoop-2.6.4
+			sbin/hadoop-daemon.sh start journalnode
+			#运行jps命令检验，www.mickey03.com、www.mickey04.com、www.mickey05.com上多了JournalNode进程
+		
+		2.7格式化HDFS
+			#在www.mickey01.com上执行命令:
+			hdfs namenode -format
+			#格式化后会在根据core-site.xml中的hadoop.tmp.dir配置生成个文件，这里我配置的是/miceky/hadoop-2.6.4/tmp，然后将/mickey/hadoop-2.6.4/tmp拷贝到www.mickey02.com的/mickey/hadoop-2.6.4/下。
+			scp -r tmp/ www.mickey02.com:/mickey/hadoop-2.6.4/
+			##也可以这样，建议在www.mickey02.com上执行 hdfs namenode -bootstrapStandby
+		
+		2.8格式化ZKFC(在www.mickey01.com上执行即可)
+			hdfs zkfc -formatZK
+			
+		查看www.mickey03.com上zookeeper的状态： 
+		cd /mickey/zookeeper-3.4.8/bin/   
+		./zkCli.sh 
+		ls /
+		get /hadoop-ha
+		ls /hadoop-ha
+		get /hadoop-ha/ns1
+		
+		2.9启动HDFS(在www.mickey01.com上执行)
+			cd /mickey/hadoop-2.6.4/sbin
+			./start-dfs.sh
+
+		2.10启动YARN(#####注意#####：分别在www.mickey06.com上执行start-yarn.sh，把namenode和resourcemanager分开是因为性能问题，因为他们都要占用大量资源，所以把他们分开了，他们分开了就要分别在不同的机器上启动)
+			sbin/start-yarn.sh
+		Hadoop的脚本不会自动启动另外一台机器（www.mickey07.com）上的RecourceManager，需要手动启动，可以执行./start-dfs.sh， 也可以执行：
+		./yarn-daemon.sh start resourcemanager
+
+		
+	到此，hadoop-2.4.1配置完毕，可以统计浏览器访问:
+		http://192.168.137.101:50070  或者 http://www.mickey01.com:50070/
+		NameNode 'www.mickey01.com:9000' (active)
+		http://192.168.137.102:50070 或者 http://www.mickey02.com:50070/
+		NameNode 'www.mickey02.com:9000' (standby)
+		
+	Yarn的管理页面：
+		http://www.mickey06.com:8088
