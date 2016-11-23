@@ -31,6 +31,7 @@ public class HdfsUtilLocal {
 
       //  fs = FileSystem.get(conf);
 
+        //FileSystem.get(URI, Configuration, UserName)
         fs = FileSystem.get(new URI("hdfs://ns1/"), conf, "hadoop");
     }
 
@@ -53,7 +54,7 @@ public class HdfsUtilLocal {
     @Test
     public  void upload2() throws IOException{
 
-        fs.copyFromLocalFile(new Path("E:/hadoopTest/MyHeartForYou.txt"), new Path("hdfs://ns1/aa/MyHeartForYou2.txt"));
+        fs.copyFromLocalFile(new Path("E:/hadoopTest/MyHeartForYou.txt"), new Path("hdfs://ns1/aaa/bbb/MyHeartForYou2.txt"));
 
     }
 
@@ -65,8 +66,25 @@ public class HdfsUtilLocal {
     }
 
     @Test
-    public void listFiles(){
+    public void listFiles() throws IOException {
 
+    RemoteIterator<LocatedFileStatus> files = fs.listFiles(new Path("/"), true);
+
+        while(files.hasNext()){
+            LocatedFileStatus file = files.next();
+            Path filePath = file.getPath();
+            String fileName = filePath.getName();
+            System.out.println(fileName);
+        }
+
+        System.out.println("===========");
+
+        FileStatus[] listStatus = fs.listStatus(new Path("/"));
+
+        for (FileStatus status : listStatus ) {
+            String fileStatus = status.getPath().getName();
+            System.out.println(fileStatus + (status.isDirectory() ? " is a directory" : " is a file"));
+        }
 
     }
 
